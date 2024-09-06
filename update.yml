@@ -8,6 +8,11 @@
       apt:
         update_cache: yes
 
-    - name: Upgrade all packages to the latest version
+    - name: Fully upgrade all packages to the latest version
       apt:
-        upgrade: dist
+        upgrade: full
+
+    - name: Remove unnecessary packages
+      apt:
+        autoremove: yes
+        purge: yes
