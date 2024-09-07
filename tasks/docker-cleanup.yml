@@ -1,8 +1,8 @@
 ---
-- name: Socker system prune
+- name: Docker system prune
   command: docker system prune -a -f
-  ignore_errors: yes
+  ignore_errors: true
 
 - name: Docker image prune
   command: docker image prune -a -f
-  ignore_errors: yes
+  ignore_errors: true

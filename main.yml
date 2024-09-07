@@ -1,20 +1,23 @@
 ---
 - name: Configure host.
   hosts: all
-  become: yes
+  become: true
 
-  tasks:
+  pre_tasks:
     - name: Gather package facts
       ansible.builtin.package_facts:
         manager: auto
 
     - name: Check if Docker is installed
       set_fact:
-        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}"
-        
-    - import_tasks: tasks/apt-update.yml
+        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}" # yamllint disable-line rule:line-length
+
+  tasks:
+    - name: Aptitude update tasks
+      import_tasks: tasks/apt-update.yml
       tags: ['apt-update']
 
-    - import_tasks: tasks/docker-cleanup.yml
+    - name: Docker cleanup tasks
+      import_tasks: tasks/docker-cleanup.yml
       when: docker_installed
       tags: ['docker-cleanup']

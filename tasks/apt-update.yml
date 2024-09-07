@@ -1,7 +1,7 @@
 ---
 - name: Update apt cache
   apt:
-    update_cache: yes
+    update_cache: true
 
 - name: Fully upgrade all packages to the latest version
   apt:
@@ -9,5 +9,5 @@
 
 - name: Remove unnecessary packages
   apt:
-    autoremove: yes
-    purge: yes
+    autoremove: true
+    purge: true
