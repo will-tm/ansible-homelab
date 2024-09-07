@@ -4,5 +4,17 @@
   become: yes
 
   tasks:
+    - name: Gather package facts
+      ansible.builtin.package_facts:
+        manager: auto
+
+    - name: Check if Docker is installed
+      set_fact:
+        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}"
+        
     - import_tasks: tasks/apt-update.yml
       tags: ['apt-update']
+
+    - import_tasks: tasks/docker-cleanup.yml
+      when: docker_installed
+      tags: ['docker-cleanup']
