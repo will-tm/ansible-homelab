@@ -1,0 +1,8 @@
+---
+- name: Configure host.
+  hosts: all
+  become: yes
+
+  tasks:
+    - import_tasks: tasks/apt-update.yml
+      tags: ['apt-update']
