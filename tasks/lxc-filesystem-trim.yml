@@ -1,0 +1,14 @@
+---
+- name: Get list of LXC containers
+  command: pct list
+  register: pct_list
+  changed_when: false
+
+- name: Extract container IDs
+  set_fact:
+    container_ids: "{{ pct_list.stdout_lines[1:] | map('regex_replace', '^\\s*(\\d+)\\s+.*$', '\\1') | list }}"  # yamllint disable-line rule:line-length
+
+- name: LXC filesystem trim
+  command: pct fstrim {{ item }}
+  loop: "{{ container_ids }}"
+  changed_when: false

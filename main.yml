@@ -10,7 +10,13 @@
 
     - name: Check if Docker is installed
       set_fact:
-        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}" # yamllint disable-line rule:line-length
+        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}"  # yamllint disable-line rule:line-length
+
+    - name: Check if LXC is installed
+      command: which pct
+      register: pct_check
+      changed_when: false
+      failed_when: false
 
   tasks:
     - name: Aptitude update tasks
@@ -21,3 +27,8 @@
       import_tasks: tasks/docker-cleanup.yml
       when: docker_installed
       tags: ['docker-cleanup']
+
+    - name: LXC filesystem trim tasks
+      import_tasks: tasks/lxc-filesystem-trim.yml
+      when: pct_check.rc == 0
+      tags: ['lxc-filesystem-trim']
