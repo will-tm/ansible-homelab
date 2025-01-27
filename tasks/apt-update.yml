@@ -11,4 +11,3 @@
   apt:
     autoremove: true
     autoclean: true
-    purge: true
