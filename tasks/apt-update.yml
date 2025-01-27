@@ -10,4 +10,5 @@
 - name: Remove unnecessary packages
   apt:
     autoremove: true
+    autoclean: true
     purge: true
