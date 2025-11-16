@@ -28,7 +28,7 @@
 
     - name: Set LXC availability fact
       set_fact:
-        lxc_available: "{{ pct_binary.stat.exists and pct_binary.stat.executable }}"
+        lxc_available: "{{ pct_binary.stat.exists and pct_binary.stat.executable }}"  # yamllint disable-line rule:line-length
 
     - name: Display environment summary
       debug:

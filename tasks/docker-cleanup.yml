@@ -47,8 +47,8 @@
   debug:
     msg: |
       Docker cleanup completed:
-      - Images pruned: {{ docker_image_prune_result.changed | default(false) }}
-      - Containers pruned: {{ docker_container_prune_result.changed | default(false) }}
-      - Volumes pruned: {{ docker_volume_prune_result.changed | default(false) }}
-      - Networks pruned: {{ docker_network_prune_result.changed | default(false) }}
-      - Build cache pruned: {{ docker_builder_prune_result.changed | default(false) }}
+      - Images: {{ docker_image_prune_result.changed | default(false) }}
+      - Containers: {{ docker_container_prune_result.changed | default(false) }}
+      - Volumes: {{ docker_volume_prune_result.changed | default(false) }}
+      - Networks: {{ docker_network_prune_result.changed | default(false) }}
+      - Build cache: {{ docker_builder_prune_result.changed | default(false) }}
