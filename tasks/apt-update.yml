@@ -10,23 +10,38 @@
     update_command_available: "{{ update_command_check.rc == 0 }}"
     update_command_path: "{{ update_command_check.stdout }}"
 
-- name: Install expect for automated update script interaction
+- name: Install expect for automated update script interaction (Debian/Ubuntu)
   apt:
     name: expect
     state: present
     update_cache: false
-  when: update_command_available | bool
-  register: expect_install_result
+  when:
+    - update_command_available | bool
+    - ansible_os_family == "Debian"
+  register: expect_install_result_apt
+  ignore_errors: true
+
+- name: Install expect for automated update script interaction (Alpine)
+  apk:
+    name: expect
+    state: present
+    update_cache: false
+  when:
+    - update_command_available | bool
+    - ansible_os_family == "Alpine"
+  register: expect_install_result_apk
   ignore_errors: true
 
 - name: Set expect availability fact
   set_fact:
-    expect_available: "{{ expect_install_result is success }}"
+    expect_available: >-
+      {{ (expect_install_result_apt is success) or
+         (expect_install_result_apk is success) }}
   when: update_command_available | bool
 
 - name: Determine if apt tasks should run
   set_fact:
-    run_apt_tasks: "{{ not (update_command_available | default(false) | bool) or not (expect_available | default(false) | bool) }}"  # yamllint disable-line rule:line-length
+    run_apt_tasks: "{{ ansible_os_family == 'Debian' and (not (update_command_available | default(false) | bool) or not (expect_available | default(false) | bool)) }}"  # yamllint disable-line rule:line-length
 
 - name: Run update command with expect (auto-select Silent Mode)
   shell: |
