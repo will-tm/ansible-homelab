@@ -10,8 +10,9 @@
     update_command_path: "{{ update_command_check.stdout }}"
     update_command_available: "{{ update_command_check.rc == 0 }}"
 
-- name: Run update command if available
-  command: "{{ update_command_path }}"
+- name: Run update command if available  # noqa: command-instead-of-shell
+  # Using shell because update scripts may not have proper shebang
+  shell: bash "{{ update_command_path }}"
   when: update_command_available | bool
   register: update_command_result
   changed_when: true
