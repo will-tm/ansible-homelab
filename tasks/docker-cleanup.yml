@@ -1,4 +1,14 @@
 ---
+- name: Check if Python requests library is available
+  shell: python3 -c "import requests" 2>/dev/null
+  register: requests_check
+  changed_when: false
+  failed_when: false
+
+- name: Set requests availability fact
+  set_fact:
+    requests_available: "{{ requests_check.rc == 0 }}"
+
 - name: Get Docker disk usage before cleanup
   command: docker system df
   register: docker_disk_before
@@ -11,11 +21,14 @@
     images_filters:
       dangling: false
   register: docker_image_prune_result
+  when: requests_available | bool
   ignore_errors: true
 
 - name: Fallback - Prune Docker images via CLI
   command: docker image prune -a -f
-  when: docker_image_prune_result.failed | default(false)
+  when: >-
+    not (requests_available | bool) or
+    (docker_image_prune_result.failed | default(false))
   register: docker_image_prune_fallback
   changed_when: true
 
@@ -23,11 +36,14 @@
   community.docker.docker_prune:
     containers: true
   register: docker_container_prune_result
+  when: requests_available | bool
   ignore_errors: true
 
 - name: Fallback - Prune Docker containers via CLI
   command: docker container prune -f
-  when: docker_container_prune_result.failed | default(false)
+  when: >-
+    not (requests_available | bool) or
+    (docker_container_prune_result.failed | default(false))
   register: docker_container_prune_fallback
   changed_when: true
 
@@ -35,11 +51,14 @@
   community.docker.docker_prune:
     volumes: true
   register: docker_volume_prune_result
+  when: requests_available | bool
   ignore_errors: true
 
 - name: Fallback - Prune Docker volumes via CLI
   command: docker volume prune -f
-  when: docker_volume_prune_result.failed | default(false)
+  when: >-
+    not (requests_available | bool) or
+    (docker_volume_prune_result.failed | default(false))
   register: docker_volume_prune_fallback
   changed_when: true
 
@@ -47,11 +66,14 @@
   community.docker.docker_prune:
     networks: true
   register: docker_network_prune_result
+  when: requests_available | bool
   ignore_errors: true
 
 - name: Fallback - Prune Docker networks via CLI
   command: docker network prune -f
-  when: docker_network_prune_result.failed | default(false)
+  when: >-
+    not (requests_available | bool) or
+    (docker_network_prune_result.failed | default(false))
   register: docker_network_prune_fallback
   changed_when: true
 
@@ -59,11 +81,14 @@
   community.docker.docker_prune:
     builder_cache: true
   register: docker_builder_prune_result
+  when: requests_available | bool
   ignore_errors: true
 
 - name: Fallback - Prune Docker build cache via CLI
   command: docker builder prune -a -f
-  when: docker_builder_prune_result.failed | default(false)
+  when: >-
+    not (requests_available | bool) or
+    (docker_builder_prune_result.failed | default(false))
   register: docker_builder_prune_fallback
   changed_when: true
 
