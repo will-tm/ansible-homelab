@@ -5,21 +5,44 @@
   changed_when: false
   failed_when: false
 
-- name: Set update command path fact
+- name: Set update command availability fact
   set_fact:
-    update_command_path: "{{ update_command_check.stdout }}"
     update_command_available: "{{ update_command_check.rc == 0 }}"
+    update_command_path: "{{ update_command_check.stdout }}"
 
-- name: Run update command if available  # noqa: command-instead-of-shell
-  # Using shell because update scripts may not have proper shebang
-  shell: bash "{{ update_command_path }}"
+- name: Install expect for automated update script interaction
+  apt:
+    name: expect
+    state: present
+    update_cache: false
+  when: update_command_available | bool
+
+- name: Run update command with expect (auto-select Silent Mode)
+  shell: |
+    expect <<'EOF'
+    set timeout 300
+    spawn bash {{ update_command_path }}
+    expect {
+      "Choose an option:" {
+        send "1\r"
+        exp_continue
+      }
+      "<Ok>" {
+        send "\r"
+        exp_continue
+      }
+      eof
+    }
+    EOF
   when: update_command_available | bool
   register: update_command_result
   changed_when: true
+  async: 600
+  poll: 10
 
-- name: Display update command output
+- name: Display update command completion
   debug:
-    msg: "Custom update command executed: {{ update_command_path }}"
+    msg: "Custom update script completed: {{ update_command_path }}"
   when: update_command_available | bool
 
 - name: Clean apt cache to free up space
@@ -82,4 +105,4 @@
 
 - name: Show upgrade summary
   debug:
-    msg: "{{ (update_command_available | default(false)) | ternary('Custom update command completed', (apt_upgrade_result.changed | default(false)) | ternary('Upgraded packages successfully', 'No packages upgraded (already up to date)')) }}"  # yamllint disable-line rule:line-length
+    msg: "{{ (update_command_available | default(false)) | ternary('Custom update script completed', (apt_upgrade_result.changed | default(false)) | ternary('Upgraded packages successfully', 'No packages upgraded (already up to date)')) }}"  # yamllint disable-line rule:line-length
