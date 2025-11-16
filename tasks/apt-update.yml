@@ -51,8 +51,12 @@
 - name: Remove unnecessary packages
   apt:
     autoremove: true
-    autoclean: true
     purge: true
+  when: not (update_command.stat.exists and update_command.stat.executable)
+
+- name: Clean apt package cache
+  apt:
+    autoclean: true
   when: not (update_command.stat.exists and update_command.stat.executable)
 
 - name: Check if reboot is required
