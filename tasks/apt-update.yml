@@ -15,12 +15,31 @@
     msg: "Custom update command executed successfully"
   when: update_command.stat.exists and update_command.stat.executable
 
+- name: Clean apt cache to free up space
+  apt:
+    clean: true
+  when: not (update_command.stat.exists and update_command.stat.executable)
+
 - name: Update apt cache
   apt:
     update_cache: true
     cache_valid_time: 3600
   register: apt_update_result
   when: not (update_command.stat.exists and update_command.stat.executable)
+
+- name: Check available disk space on root partition
+  shell: df / | tail -1 | awk '{print $4}'
+  register: disk_space_available
+  changed_when: false
+  when: not (update_command.stat.exists and update_command.stat.executable)
+
+- name: Warn if disk space is critically low
+  debug:
+    msg: "WARNING: Low disk space detected ({{ (disk_space_available.stdout | int / 1024) | round(0) }} MB available). Upgrades may fail if more space is needed."  # yamllint disable-line rule:line-length
+  when:
+    - not (update_command.stat.exists and update_command.stat.executable)
+    - disk_space_available.stdout is defined
+    - disk_space_available.stdout | int < 512000
 
 - name: Fully upgrade all packages to the latest version
   apt:
