@@ -1,21 +1,40 @@
 ---
+- name: Check if update command is available
+  stat:
+    path: /usr/local/bin/update
+  register: update_command
+
+- name: Run update command if available
+  command: /usr/local/bin/update
+  when: update_command.stat.exists and update_command.stat.executable
+  register: update_command_result
+  changed_when: true
+
+- name: Display update command output
+  debug:
+    msg: "Custom update command executed successfully"
+  when: update_command.stat.exists and update_command.stat.executable
+
 - name: Update apt cache
   apt:
     update_cache: true
     cache_valid_time: 3600
   register: apt_update_result
+  when: not (update_command.stat.exists and update_command.stat.executable)
 
 - name: Fully upgrade all packages to the latest version
   apt:
     upgrade: full
     force_apt_get: true
   register: apt_upgrade_result
+  when: not (update_command.stat.exists and update_command.stat.executable)
 
 - name: Remove unnecessary packages
   apt:
     autoremove: true
     autoclean: true
     purge: true
+  when: not (update_command.stat.exists and update_command.stat.executable)
 
 - name: Check if reboot is required
   stat:
@@ -29,4 +48,4 @@
 
 - name: Show upgrade summary
   debug:
-    msg: "Upgraded {{ apt_upgrade_result.changed | ternary('packages successfully', 'no packages (already up to date)') }}"
+    msg: "{{ update_command.stat.exists and update_command.stat.executable | ternary('Custom update command completed', apt_upgrade_result.changed | ternary('Upgraded packages successfully', 'No packages upgraded (already up to date)')) }}"  # yamllint disable-line rule:line-length
