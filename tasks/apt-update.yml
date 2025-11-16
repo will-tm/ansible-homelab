@@ -16,6 +16,17 @@
     state: present
     update_cache: false
   when: update_command_available | bool
+  register: expect_install_result
+  ignore_errors: true
+
+- name: Set expect availability fact
+  set_fact:
+    expect_available: "{{ expect_install_result is success }}"
+  when: update_command_available | bool
+
+- name: Determine if apt tasks should run
+  set_fact:
+    run_apt_tasks: "{{ not (update_command_available | default(false) | bool) or not (expect_available | default(false) | bool) }}"  # yamllint disable-line rule:line-length
 
 - name: Run update command with expect (auto-select Silent Mode)
   shell: |
@@ -34,7 +45,9 @@
       eof
     }
     EOF
-  when: update_command_available | bool
+  when:
+    - update_command_available | bool
+    - expect_available | default(false) | bool
   register: update_command_result
   changed_when: true
   async: 600
@@ -43,19 +56,28 @@
 - name: Display update command completion
   debug:
     msg: "Custom update script completed: {{ update_command_path }}"
-  when: update_command_available | bool
+  when:
+    - update_command_available | bool
+    - expect_available | default(false) | bool
+
+- name: Warn if update script exists but expect unavailable
+  debug:
+    msg: "WARNING: Update script found at {{ update_command_path }} but expect package unavailable. Falling back to apt update."  # yamllint disable-line rule:line-length
+  when:
+    - update_command_available | bool
+    - not (expect_available | default(false) | bool)
 
 - name: Clean apt cache to free up space
   apt:
     clean: true
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Update apt cache
   apt:
     update_cache: true
     cache_valid_time: 3600
   register: apt_update_result
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Check available disk space on root partition
   shell: |
@@ -65,7 +87,7 @@
     executable: /bin/bash
   register: disk_space_available
   changed_when: false
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Warn if disk space is critically low
   debug:
@@ -80,18 +102,18 @@
     upgrade: full
     force_apt_get: true
   register: apt_upgrade_result
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Remove unnecessary packages
   apt:
     autoremove: true
     purge: true
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Clean apt package cache
   apt:
     autoclean: true
-  when: not (update_command_available | default(false) | bool)
+  when: run_apt_tasks | default(true) | bool
 
 - name: Check if reboot is required
   stat:
