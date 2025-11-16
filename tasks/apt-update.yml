@@ -28,7 +28,11 @@
   when: not (update_command.stat.exists and update_command.stat.executable)
 
 - name: Check available disk space on root partition
-  shell: df / | tail -1 | awk '{print $4}'
+  shell: |
+    set -o pipefail
+    df / | tail -1 | awk '{print $4}'
+  args:
+    executable: /bin/bash
   register: disk_space_available
   changed_when: false
   when: not (update_command.stat.exists and update_command.stat.executable)
