@@ -1,31 +1,37 @@
 ---
 - name: Check if update command is available
-  stat:
-    path: /usr/local/bin/update
-  register: update_command
+  command: which update
+  register: update_command_check
+  changed_when: false
+  failed_when: false
+
+- name: Set update command path fact
+  set_fact:
+    update_command_path: "{{ update_command_check.stdout }}"
+    update_command_available: "{{ update_command_check.rc == 0 }}"
 
 - name: Run update command if available
-  command: /usr/local/bin/update
-  when: update_command.stat.exists and update_command.stat.executable
+  command: "{{ update_command_path }}"
+  when: update_command_available | bool
   register: update_command_result
   changed_when: true
 
 - name: Display update command output
   debug:
-    msg: "Custom update command executed successfully"
-  when: update_command.stat.exists and update_command.stat.executable
+    msg: "Custom update command executed: {{ update_command_path }}"
+  when: update_command_available | bool
 
 - name: Clean apt cache to free up space
   apt:
     clean: true
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Update apt cache
   apt:
     update_cache: true
     cache_valid_time: 3600
   register: apt_update_result
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Check available disk space on root partition
   shell: |
@@ -35,13 +41,13 @@
     executable: /bin/bash
   register: disk_space_available
   changed_when: false
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Warn if disk space is critically low
   debug:
     msg: "WARNING: Low disk space detected ({{ (disk_space_available.stdout | int / 1024) | round(0) }} MB available). Upgrades may fail if more space is needed."  # yamllint disable-line rule:line-length
   when:
-    - not (update_command.stat.exists and update_command.stat.executable)
+    - not (update_command_available | default(false) | bool)
     - disk_space_available.stdout is defined
     - disk_space_available.stdout | int < 512000
 
@@ -50,18 +56,18 @@
     upgrade: full
     force_apt_get: true
   register: apt_upgrade_result
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Remove unnecessary packages
   apt:
     autoremove: true
     purge: true
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Clean apt package cache
   apt:
     autoclean: true
-  when: not (update_command.stat.exists and update_command.stat.executable)
+  when: not (update_command_available | default(false) | bool)
 
 - name: Check if reboot is required
   stat:
@@ -75,4 +81,4 @@
 
 - name: Show upgrade summary
   debug:
-    msg: "{{ update_command.stat.exists and update_command.stat.executable | ternary('Custom update command completed', apt_upgrade_result.changed | ternary('Upgraded packages successfully', 'No packages upgraded (already up to date)')) }}"  # yamllint disable-line rule:line-length
+    msg: "{{ (update_command_available | default(false)) | ternary('Custom update command completed', (apt_upgrade_result.changed | default(false)) | ternary('Upgraded packages successfully', 'No packages upgraded (already up to date)')) }}"  # yamllint disable-line rule:line-length

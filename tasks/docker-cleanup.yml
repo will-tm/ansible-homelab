@@ -13,11 +13,23 @@
   register: docker_image_prune_result
   ignore_errors: true
 
+- name: Fallback - Prune Docker images via CLI
+  command: docker image prune -a -f
+  when: docker_image_prune_result.failed | default(false)
+  register: docker_image_prune_fallback
+  changed_when: true
+
 - name: Prune Docker containers
   community.docker.docker_prune:
     containers: true
   register: docker_container_prune_result
   ignore_errors: true
+
+- name: Fallback - Prune Docker containers via CLI
+  command: docker container prune -f
+  when: docker_container_prune_result.failed | default(false)
+  register: docker_container_prune_fallback
+  changed_when: true
 
 - name: Prune Docker volumes
   community.docker.docker_prune:
@@ -25,11 +37,23 @@
   register: docker_volume_prune_result
   ignore_errors: true
 
+- name: Fallback - Prune Docker volumes via CLI
+  command: docker volume prune -f
+  when: docker_volume_prune_result.failed | default(false)
+  register: docker_volume_prune_fallback
+  changed_when: true
+
 - name: Prune Docker networks
   community.docker.docker_prune:
     networks: true
   register: docker_network_prune_result
   ignore_errors: true
+
+- name: Fallback - Prune Docker networks via CLI
+  command: docker network prune -f
+  when: docker_network_prune_result.failed | default(false)
+  register: docker_network_prune_fallback
+  changed_when: true
 
 - name: Prune Docker build cache
   community.docker.docker_prune:
@@ -37,18 +61,33 @@
   register: docker_builder_prune_result
   ignore_errors: true
 
+- name: Fallback - Prune Docker build cache via CLI
+  command: docker builder prune -a -f
+  when: docker_builder_prune_result.failed | default(false)
+  register: docker_builder_prune_fallback
+  changed_when: true
+
 - name: Get Docker disk usage after cleanup
   command: docker system df
   register: docker_disk_after
   changed_when: false
   failed_when: false
 
+- name: Set Docker cleanup results
+  set_fact:
+    docker_cleanup_summary:
+      images: "{{ (docker_image_prune_result.changed or docker_image_prune_fallback.changed | default(false)) | default(false) }}"  # yamllint disable-line rule:line-length
+      containers: "{{ (docker_container_prune_result.changed or docker_container_prune_fallback.changed | default(false)) | default(false) }}"  # yamllint disable-line rule:line-length
+      volumes: "{{ (docker_volume_prune_result.changed or docker_volume_prune_fallback.changed | default(false)) | default(false) }}"  # yamllint disable-line rule:line-length
+      networks: "{{ (docker_network_prune_result.changed or docker_network_prune_fallback.changed | default(false)) | default(false) }}"  # yamllint disable-line rule:line-length
+      build_cache: "{{ (docker_builder_prune_result.changed or docker_builder_prune_fallback.changed | default(false)) | default(false) }}"  # yamllint disable-line rule:line-length
+
 - name: Display Docker cleanup summary
   debug:
     msg: |
       Docker cleanup completed:
-      - Images: {{ docker_image_prune_result.changed | default(false) }}
-      - Containers: {{ docker_container_prune_result.changed | default(false) }}
-      - Volumes: {{ docker_volume_prune_result.changed | default(false) }}
-      - Networks: {{ docker_network_prune_result.changed | default(false) }}
-      - Build cache: {{ docker_builder_prune_result.changed | default(false) }}
+      - Images: {{ docker_cleanup_summary.images }}
+      - Containers: {{ docker_cleanup_summary.containers }}
+      - Volumes: {{ docker_cleanup_summary.volumes }}
+      - Networks: {{ docker_cleanup_summary.networks }}
+      - Build cache: {{ docker_cleanup_summary.build_cache }}
