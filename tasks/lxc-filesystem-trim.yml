@@ -4,11 +4,25 @@
   register: pct_list
   changed_when: false
 
-- name: Extract container IDs
+- name: Parse container information
   set_fact:
-    container_ids: "{{ pct_list.stdout_lines[1:] | map('regex_replace', '^\\s*(\\d+)\\s+.*$', '\\1') | list }}"  # yamllint disable-line rule:line-length
+    lxc_containers: "{{ pct_list.stdout_lines[1:] | map('regex_replace', '^\\s*(\\d+)\\s+(\\S+)\\s+(\\S+)\\s+.*$', '{\"id\": \"\\1\", \"status\": \"\\2\", \"name\": \"\\3\"}') | map('from_json') | list }}"  # yamllint disable-line rule:line-length
+  when: pct_list.stdout_lines | length > 1
 
-- name: LXC filesystem trim
+- name: Filter running containers
+  set_fact:
+    running_container_ids: "{{ lxc_containers | selectattr('status', 'equalto', 'running') | map(attribute='id') | list }}"  # yamllint disable-line rule:line-length
+  when: lxc_containers is defined
+
+- name: LXC filesystem trim on running containers
   command: pct fstrim {{ item }}
-  loop: "{{ container_ids }}"
+  loop: "{{ running_container_ids }}"
+  register: fstrim_results
   changed_when: false
+  failed_when: false
+  when: running_container_ids is defined and running_container_ids | length > 0
+
+- name: Display LXC trim summary
+  debug:
+    msg: "Trimmed {{ running_container_ids | default([]) | length }} running LXC container(s)"
+  when: lxc_containers is defined

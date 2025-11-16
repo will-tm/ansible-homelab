@@ -1,8 +1,54 @@
 ---
-- name: Docker system prune
-  command: docker system prune -a -f
+- name: Get Docker disk usage before cleanup
+  command: docker system df
+  register: docker_disk_before
+  changed_when: false
+  failed_when: false
+
+- name: Prune Docker images
+  community.docker.docker_prune:
+    images: true
+    images_filters:
+      dangling: false
+  register: docker_image_prune_result
   ignore_errors: true
 
-- name: Docker image prune
-  command: docker image prune -a -f
+- name: Prune Docker containers
+  community.docker.docker_prune:
+    containers: true
+  register: docker_container_prune_result
   ignore_errors: true
+
+- name: Prune Docker volumes
+  community.docker.docker_prune:
+    volumes: true
+  register: docker_volume_prune_result
+  ignore_errors: true
+
+- name: Prune Docker networks
+  community.docker.docker_prune:
+    networks: true
+  register: docker_network_prune_result
+  ignore_errors: true
+
+- name: Prune Docker build cache
+  community.docker.docker_prune:
+    builder_cache: true
+  register: docker_builder_prune_result
+  ignore_errors: true
+
+- name: Get Docker disk usage after cleanup
+  command: docker system df
+  register: docker_disk_after
+  changed_when: false
+  failed_when: false
+
+- name: Display Docker cleanup summary
+  debug:
+    msg: |
+      Docker cleanup completed:
+      - Images pruned: {{ docker_image_prune_result.changed | default(false) }}
+      - Containers pruned: {{ docker_container_prune_result.changed | default(false) }}
+      - Volumes pruned: {{ docker_volume_prune_result.changed | default(false) }}
+      - Networks pruned: {{ docker_network_prune_result.changed | default(false) }}
+      - Build cache pruned: {{ docker_builder_prune_result.changed | default(false) }}

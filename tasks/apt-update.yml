@@ -2,12 +2,31 @@
 - name: Update apt cache
   apt:
     update_cache: true
+    cache_valid_time: 3600
+  register: apt_update_result
 
 - name: Fully upgrade all packages to the latest version
   apt:
     upgrade: full
+    force_apt_get: true
+  register: apt_upgrade_result
 
 - name: Remove unnecessary packages
   apt:
     autoremove: true
     autoclean: true
+    purge: true
+
+- name: Check if reboot is required
+  stat:
+    path: /var/run/reboot-required
+  register: reboot_required
+
+- name: Display reboot notification
+  debug:
+    msg: "WARNING: System reboot is required after updates!"
+  when: reboot_required.stat.exists
+
+- name: Show upgrade summary
+  debug:
+    msg: "Upgraded {{ apt_upgrade_result.changed | ternary('packages successfully', 'no packages (already up to date)') }}"

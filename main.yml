@@ -1,34 +1,61 @@
 ---
-- name: Configure host.
+- name: Homelab Maintenance
   hosts: all
   become: true
+  gather_facts: true
+
+  vars:
+    # Set to true to enable verbose output
+    maintenance_verbose: false
 
   pre_tasks:
+    - name: Display playbook start time
+      debug:
+        msg: "Starting homelab maintenance at {{ ansible_date_time.iso8601 }}"
+
     - name: Gather package facts
       ansible.builtin.package_facts:
         manager: auto
 
     - name: Check if Docker is installed
       set_fact:
-        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker' in ansible_facts.packages }}"  # yamllint disable-line rule:line-length
+        docker_installed: "{{ 'docker-ce' in ansible_facts.packages or 'docker.io' in ansible_facts.packages or 'docker' in ansible_facts.packages }}"  # yamllint disable-line rule:line-length
 
-    - name: Check if LXC is installed
-      command: which pct
-      register: pct_check
-      changed_when: false
-      failed_when: false
+    - name: Check if LXC tools are installed
+      stat:
+        path: /usr/sbin/pct
+      register: pct_binary
+
+    - name: Set LXC availability fact
+      set_fact:
+        lxc_available: "{{ pct_binary.stat.exists and pct_binary.stat.executable }}"
+
+    - name: Display environment summary
+      debug:
+        msg: |
+          Environment detected:
+          - Hostname: {{ ansible_hostname }}
+          - OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          - Docker installed: {{ docker_installed }}
+          - LXC available: {{ lxc_available }}
+      when: maintenance_verbose | bool
 
   tasks:
     - name: Aptitude update tasks
       import_tasks: tasks/apt-update.yml
-      tags: ['apt-update']
+      tags: ['apt-update', 'apt', 'updates']
 
     - name: Docker cleanup tasks
       import_tasks: tasks/docker-cleanup.yml
-      when: docker_installed
-      tags: ['docker-cleanup']
+      when: docker_installed | bool
+      tags: ['docker-cleanup', 'docker', 'cleanup']
 
     - name: LXC filesystem trim tasks
       import_tasks: tasks/lxc-filesystem-trim.yml
-      when: pct_check.rc == 0
-      tags: ['lxc-filesystem-trim']
+      when: lxc_available | bool
+      tags: ['lxc-filesystem-trim', 'lxc', 'trim']
+
+  post_tasks:
+    - name: Display playbook completion time
+      debug:
+        msg: "Homelab maintenance completed at {{ ansible_date_time.iso8601 }}"
