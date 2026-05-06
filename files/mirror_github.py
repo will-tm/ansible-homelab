@@ -53,7 +53,7 @@ def main():
     gh_user = os.environ.get("GITHUB_USER", "will-tm")
     gh_pat = os.environ["GITHUB_PAT"]
     fj_url = os.environ.get("FORGEJO_URL", "https://forgejo.will-tm.io").rstrip("/")
-    fj_org = os.environ.get("FORGEJO_ORG", "github")
+    fj_org = os.environ.get("FORGEJO_ORG", "gh-mirrors")
     fj_tok = os.environ["FORGEJO_TOKEN"]
     fj_auth = f"token {fj_tok}"
 
