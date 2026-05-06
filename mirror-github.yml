@@ -67,6 +67,17 @@
       no_log: true
       changed_when: false
 
+    - name: Plan create mirror (visible per-repo)
+      ansible.builtin.debug:
+        msg: >-
+          Will create mirror github/{{ item.item.name }}
+          ({{ 'private' if item.item.private else 'public' }},
+          {{ item.item.size }}KB)
+      loop: "{{ forgejo_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.status == 404
+
     - name: Create missing mirrors
       ansible.builtin.uri:
         url: "{{ forgejo_url }}/api/v1/repos/migrate"
@@ -96,25 +107,33 @@
           milestones: false
           labels: false
         status_code: [201]
+        timeout: 600
       loop: "{{ forgejo_check.results }}"
       loop_control:
         label: "{{ item.item.name }}"
       when: item.status == 404
       no_log: true
       register: created
-      failed_when: false
+      ignore_errors: true
 
-    - name: Report any failed creates (without leaking secrets)
+    - name: Report create result
       ansible.builtin.debug:
         msg: >-
-          FAILED to create mirror github/{{ item.item.item.name }}
-          (status {{ item.status | default('?') }})
+          github/{{ item.item.item.name }}:
+          {{ 'CREATED' if (item.status | default(0)) == 201
+             else 'FAILED status=' + (item.status | default('?') | string) }}
       loop: "{{ created.results | default([]) }}"
       loop_control:
         label: "{{ item.item.item.name | default('?') }}"
-      when:
-        - not (item.skipped | default(false))
-        - (item.status | default(0)) != 201
+      when: not (item.skipped | default(false))
+
+    - name: Plan mirror-sync (visible per-repo)
+      ansible.builtin.debug:
+        msg: "Will sync mirror github/{{ item.item.name }}"
+      loop: "{{ forgejo_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.status == 200
 
     - name: Trigger mirror-sync on existing mirrors
       ansible.builtin.uri:
@@ -123,11 +142,26 @@
         headers:
           Authorization: "token {{ forgejo_token }}"
         status_code: [200]
+        timeout: 60
       loop: "{{ forgejo_check.results }}"
       loop_control:
         label: "{{ item.item.name }}"
       when: item.status == 200
       no_log: true
+      register: synced
+      ignore_errors: true
+
+    - name: Report sync result
+      ansible.builtin.debug:
+        msg: >-
+          github/{{ item.item.item.name }}:
+          {{ 'SYNC OK' if (item.status | default(0)) == 200
+             else 'SYNC FAILED status=' +
+                  (item.status | default('?') | string) }}
+      loop: "{{ synced.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.item.name | default('?') }}"
+      when: not (item.skipped | default(false))
 
     - name: Summary
       ansible.builtin.debug:
