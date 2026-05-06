@@ -77,11 +77,8 @@ def main():
                 failed += 1
 
         elif status == 404:
-            clone_with_auth = r["clone_url"].replace(
-                "https://", f"https://x-access-token:{gh_pat}@"
-            )
             body = {
-                "clone_addr": clone_with_auth,
+                "clone_addr": r["clone_url"],
                 "repo_owner": fj_org,
                 "repo_name": name,
                 "description": (r.get("description") or "")[:255],
