@@ -101,6 +101,20 @@
         label: "{{ item.item.name }}"
       when: item.status == 404
       no_log: true
+      register: created
+      failed_when: false
+
+    - name: Report any failed creates (without leaking secrets)
+      ansible.builtin.debug:
+        msg: >-
+          FAILED to create mirror github/{{ item.item.item.name }}
+          (status {{ item.status | default('?') }})
+      loop: "{{ created.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.item.name | default('?') }}"
+      when:
+        - not (item.skipped | default(false))
+        - (item.status | default(0)) != 201
 
     - name: Trigger mirror-sync on existing mirrors
       ansible.builtin.uri:
