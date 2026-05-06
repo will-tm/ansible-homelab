@@ -1,0 +1,110 @@
+---
+- name: Mirror GitHub repos to Forgejo
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    github_user: "{{ lookup('env', 'GITHUB_USER') | default('will-tm', true) }}"
+    github_pat: "{{ lookup('env', 'GITHUB_PAT') }}"
+    forgejo_url: "{{ lookup('env', 'FORGEJO_URL') | default('https://forgejo.will-tm.io', true) }}"
+    forgejo_org: "{{ lookup('env', 'FORGEJO_ORG') | default('github', true) }}"
+    forgejo_token: "{{ lookup('env', 'FORGEJO_TOKEN') }}"
+    max_pages: 10
+
+  tasks:
+    - name: Sanity check secrets are set
+      ansible.builtin.assert:
+        that:
+          - github_pat | length > 0
+          - forgejo_token | length > 0
+        fail_msg: "GITHUB_PAT and FORGEJO_TOKEN env vars must be set in the Semaphore environment."
+
+    - name: Fetch GitHub repos (paginated, 100/page)
+      ansible.builtin.uri:
+        url: "https://api.github.com/user/repos?affiliation=owner&visibility=all&per_page=100&page={{ item }}"
+        headers:
+          Authorization: "token {{ github_pat }}"
+          Accept: application/vnd.github+json
+        return_content: true
+      register: gh_pages
+      loop: "{{ range(1, max_pages + 1) | list }}"
+      no_log: true
+
+    - name: Flatten repo list
+      ansible.builtin.set_fact:
+        github_repos: >-
+          {{ gh_pages.results
+             | map(attribute='json')
+             | flatten
+             | list }}
+
+    - name: Show discovered repos
+      ansible.builtin.debug:
+        msg: "Found {{ github_repos | length }} GitHub repos under {{ github_user }} ({{ github_repos | selectattr('private') | list | length }} private)"
+
+    - name: Check Forgejo for existing mirror
+      ansible.builtin.uri:
+        url: "{{ forgejo_url }}/api/v1/repos/{{ forgejo_org }}/{{ item.name }}"
+        headers:
+          Authorization: "token {{ forgejo_token }}"
+        status_code: [200, 404]
+      register: forgejo_check
+      loop: "{{ github_repos }}"
+      loop_control:
+        label: "{{ item.name }}"
+      no_log: true
+
+    - name: Create missing mirrors
+      ansible.builtin.uri:
+        url: "{{ forgejo_url }}/api/v1/repos/migrate"
+        method: POST
+        headers:
+          Authorization: "token {{ forgejo_token }}"
+          Content-Type: application/json
+        body_format: json
+        body:
+          clone_addr: "{{ item.item.clone_url }}"
+          repo_owner: "{{ forgejo_org }}"
+          repo_name: "{{ item.item.name }}"
+          description: "{{ item.item.description | default('') | truncate(255) }}"
+          mirror: true
+          mirror_interval: "8h0m0s"
+          private: "{{ item.item.private }}"
+          auth_username: "{{ github_user }}"
+          auth_password: "{{ github_pat }}"
+          service: "github"
+          wiki: false
+          issues: false
+          pull_requests: false
+          releases: true
+          milestones: false
+          labels: false
+        status_code: [201]
+      loop: "{{ forgejo_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.status == 404
+      no_log: true
+      register: created
+
+    - name: Trigger mirror-sync on existing mirrors
+      ansible.builtin.uri:
+        url: "{{ forgejo_url }}/api/v1/repos/{{ forgejo_org }}/{{ item.item.name }}/mirror-sync"
+        method: POST
+        headers:
+          Authorization: "token {{ forgejo_token }}"
+        status_code: [200]
+      loop: "{{ forgejo_check.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.status == 200
+      no_log: true
+      register: synced
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg:
+          - "Discovered: {{ github_repos | length }} repos"
+          - "Newly mirrored: {{ forgejo_check.results | selectattr('status', 'equalto', 404) | list | length }}"
+          - "Sync triggered: {{ forgejo_check.results | selectattr('status', 'equalto', 200) | list | length }}"
