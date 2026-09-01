@@ -60,11 +60,21 @@
       eof
     }
     EOF
+  environment:
+    TERM: xterm
   when:
     - update_command_available | bool
     - expect_available | default(false) | bool
   register: update_command_result
   changed_when: true
+  failed_when:
+    - update_command_result.rc is defined
+    - >-
+      update_command_result.rc != 0 or
+      'TERM environment variable not set' in
+      (update_command_result.stdout | default('')) or
+      'TERM environment variable not set' in
+      (update_command_result.stderr | default(''))
   async: 600
   poll: 10
 
