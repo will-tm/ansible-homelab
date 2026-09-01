@@ -57,6 +57,10 @@
         send "\r"
         exp_continue
       }
+      "Continue anyway" {
+        send "y\r"
+        exp_continue
+      }
       eof
     }
     EOF
@@ -74,7 +78,9 @@
       'TERM environment variable not set' in
       (update_command_result.stdout | default('')) or
       'TERM environment variable not set' in
-      (update_command_result.stderr | default(''))
+      (update_command_result.stderr | default('')) or
+      'Exiting based on user input' in
+      (update_command_result.stdout | default(''))
   async: 600
   poll: 10
 
