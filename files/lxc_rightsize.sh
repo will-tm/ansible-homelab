@@ -3,15 +3,15 @@
 # never hit their unattended-mode prechecks (build.func):
 #   check_container_storage   -> exit 114 when / (/boot) is > 80% used
 #   check_container_resources -> exit 113 when nproc/RAM < ct/<slug>.sh var_cpu/var_ram
-# Grow-only: disks are resized up, cores/memory raised to the upstream minimum.
+# Disks are NEVER resized here: a full rootfs is only reported (task fails) so
+# Will can analyse and decide. Cores/memory are raised to the upstream minimum.
 # Usage: lxc_rightsize.sh [--dry-run]
-# Prints one "CHANGED ..." line per change; exit 0 unless a fix was needed but failed.
+# Prints "CHANGED ..." per change and "DISK ..." per full rootfs; exit 1 if any
+# DISK line or failed change.
 set -uo pipefail
 
 DRY=0; [[ "${1:-}" == "--dry-run" ]] && DRY=1
-DISK_TRIGGER=70   # grow when usage >= this % (updater aborts above 80%; builds eat space mid-update)
-DISK_TARGET=60    # grow so usage lands at about this %
-POOL_FREE_MIN_G=20  # never let a resize leave the storage with less than this free
+DISK_WARN=75   # report when usage >= this % (updater aborts above 80%)
 CS_URL="https://raw.githubusercontent.com/community-scripts/ProxmoxVE/main"
 rc=0
 
@@ -22,23 +22,13 @@ run() {
 for id in $(pct list | awk 'NR>1 && $2=="running"{print $1}'); do
   name=$(pct config "$id" | awk '/^hostname:/{print $2}')
 
-  # --- disk ---------------------------------------------------------------
+  # --- disk: report only, NEVER resize (Will decides disk sizes) -----------
   read -r size_k used_k < <(pct exec "$id" -- df -Pk / 2>/dev/null | awk 'NR==2{print $2, $3}')
   if [[ -n "${size_k:-}" && "$size_k" -gt 0 ]]; then
     pct_used=$((100 * used_k / size_k))
-    if ((pct_used >= DISK_TRIGGER)); then
-      size_g=$(( (size_k + 1048575) / 1048576 ))
-      want_g=$(( (used_k * 100 / DISK_TARGET + 1048575) / 1048576 ))
-      add_g=$((want_g - size_g)); ((add_g < 2)) && add_g=2
-      storage=$(pct config "$id" | sed -n 's/^rootfs: \([^:]*\):.*/\1/p')
-      avail_g=$(pvesm status --storage "$storage" 2>/dev/null | awk 'NR==2{print int($6/1048576)}')
-      if [[ -n "$avail_g" ]] && ((avail_g - add_g >= POOL_FREE_MIN_G)); then
-        echo "CHANGED $id/$name: rootfs ${pct_used}% of ${size_g}G -> +${add_g}G"
-        run pct resize "$id" rootfs "+${add_g}G" || { echo "FAILED $id/$name: pct resize"; rc=1; }
-      else
-        echo "FAILED $id/$name: rootfs ${pct_used}% but storage $storage has only ${avail_g:-?}G free"
-        rc=1
-      fi
+    if ((pct_used >= DISK_WARN)); then
+      echo "DISK $id/$name: rootfs ${pct_used}% of $(( (size_k + 1048575) / 1048576 ))G - community-scripts updater aborts above 80%, needs a decision"
+      rc=1
     fi
   fi
 

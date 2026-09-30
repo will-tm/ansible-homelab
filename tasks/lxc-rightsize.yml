@@ -1,12 +1,18 @@
 ---
 # Runs on Proxmox nodes ("Update Proxmox nodes", 06:00) ahead of the LXC update
-# run (06:15). Grows full rootfs disks and raises cores/RAM to the upstream
-# community-scripts minimums, because the updaters exit 113/114 in Silent Mode
-# instead of prompting - see files/lxc_rightsize.sh.
+# run (06:15). Raises cores/RAM to the upstream community-scripts minimums and
+# FAILS (never resizes) when an LXC rootfs is >= 75%, because the updaters exit
+# 113/114 in Silent Mode instead of prompting - see files/lxc_rightsize.sh.
 - name: Right-size running LXCs for community-scripts updater prechecks
   script: files/lxc_rightsize.sh
   register: lxc_rightsize_result
   changed_when: "'CHANGED' in lxc_rightsize_result.stdout"
+  failed_when: false
+
+- name: Fail on LXC disks that need a sizing decision
+  fail:
+    msg: "{{ lxc_rightsize_result.stdout_lines | select('match', '^(DISK|FAILED)') | list }}"  # yamllint disable-line rule:line-length
+  when: lxc_rightsize_result.rc != 0
 
 - name: Display LXC right-size changes
   debug:
