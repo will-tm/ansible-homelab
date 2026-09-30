@@ -66,7 +66,7 @@
         send "\r"
         exp_continue
       }
-      # Community-scripts low-disk / generic guard prompts. Match the whole
+      # Interactive-mode guard prompts (never shown in Silent Mode). Match the whole
       # family ("Continue anyway? [y/N] (auto-n in 60s):" etc.) and confirm
       # immediately before the 60s auto-no fires.
       -re "Continue anyway" {
@@ -96,14 +96,29 @@
     - expect_available | default(false) | bool
   register: update_command_result
   changed_when: true
-  # Only fail on a genuine non-zero exit code. The community-scripts helper
-  # returns rc 0 on success even though its whiptail TUI prints text that used
-  # to trip the old substring matches (false-positive failures on n8n etc.).
-  failed_when:
-    - update_command_result.rc is defined
-    - update_command_result.rc != 0
+  # Judged by the next task so a failure reports the updater's own reason.
+  failed_when: false
   async: 900
   poll: 10
+
+# Only fail on a genuine non-zero exit code. The community-scripts helper
+# returns rc 0 on success even though its whiptail TUI prints text that used
+# to trip the old substring matches (false-positive failures on n8n etc.).
+# In Silent Mode the updater is "unattended" and never prompts: rc 113 =
+# under-provisioned CPU/RAM, rc 114 = disk > 80%. tasks/lxc-rightsize.yml fixes
+# both on the Proxmox run beforehand; if one still happens, say so plainly.
+- name: Fail if update command failed
+  fail:
+    msg: >-
+      {{ update_command_path }} exited rc {{ update_command_result.rc }}:
+      {{ {'113': 'under-provisioned CPU/RAM vs community-scripts minimum',
+          '114': 'rootfs over 80% full'}[update_command_result.rc | string]
+         | default((update_command_result.stdout | default('')
+                    | regex_findall('(?:Aborted|ERROR|Error)[^\r\n\x1b]*') | last)
+                   | default('see stdout')) }}
+  when:
+    - update_command_result.rc is defined
+    - update_command_result.rc != 0
 
 - name: Display update command completion
   debug:

@@ -41,6 +41,11 @@
       when: maintenance_verbose | bool
 
   tasks:
+    - name: LXC right-size tasks
+      import_tasks: tasks/lxc-rightsize.yml
+      when: lxc_available | bool
+      tags: ['lxc-rightsize', 'lxc']
+
     - name: Aptitude update tasks
       import_tasks: tasks/apt-update.yml
       tags: ['apt-update', 'apt', 'updates']

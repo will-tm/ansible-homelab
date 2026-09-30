@@ -1,0 +1,14 @@
+---
+# Runs on Proxmox nodes ("Update Proxmox nodes", 06:00) ahead of the LXC update
+# run (06:15). Grows full rootfs disks and raises cores/RAM to the upstream
+# community-scripts minimums, because the updaters exit 113/114 in Silent Mode
+# instead of prompting - see files/lxc_rightsize.sh.
+- name: Right-size running LXCs for community-scripts updater prechecks
+  script: files/lxc_rightsize.sh
+  register: lxc_rightsize_result
+  changed_when: "'CHANGED' in lxc_rightsize_result.stdout"
+
+- name: Display LXC right-size changes
+  debug:
+    msg: "{{ lxc_rightsize_result.stdout_lines }}"
+  when: lxc_rightsize_result.stdout_lines | length > 0
