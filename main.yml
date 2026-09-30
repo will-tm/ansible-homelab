@@ -50,6 +50,10 @@
       import_tasks: tasks/apt-update.yml
       tags: ['apt-update', 'apt', 'updates']
 
+    - name: Cache cleanup tasks
+      import_tasks: tasks/cache-cleanup.yml
+      tags: ['cache-cleanup', 'cleanup']
+
     - name: Docker cleanup tasks
       import_tasks: tasks/docker-cleanup.yml
       when: docker_installed | bool

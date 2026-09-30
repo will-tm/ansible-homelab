@@ -1,0 +1,10 @@
+---
+- name: Prune npm/pnpm/uv caches and stale n8n editor assets
+  script: files/cache_cleanup.sh
+  register: cache_cleanup_result
+  changed_when: "'CHANGED' in cache_cleanup_result.stdout"
+
+- name: Display cache cleanup result
+  debug:
+    msg: "{{ cache_cleanup_result.stdout | trim }}"
+  when: cache_cleanup_result.stdout | trim | length > 0
