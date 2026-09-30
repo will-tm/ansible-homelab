@@ -43,7 +43,8 @@
   set_fact:
     run_apt_tasks: "{{ ansible_os_family == 'Debian' and (not (update_command_available | default(false) | bool) or not (expect_available | default(false) | bool)) }}"  # yamllint disable-line rule:line-length
 
-- name: Run update command with expect (auto-select Silent Mode)
+# The '|' below are expect regex alternations, not shell pipes.
+- name: Run update via expect (Silent Mode)  # noqa: risky-shell-pipe
   shell: |
     expect <<'EOF'
     set timeout 600
@@ -66,9 +67,9 @@
         send "\r"
         exp_continue
       }
-      # Interactive-mode guard prompts (never shown in Silent Mode). Match the whole
-      # family ("Continue anyway? [y/N] (auto-n in 60s):" etc.) and confirm
-      # immediately before the 60s auto-no fires.
+      # Interactive-mode guard prompts (never shown in Silent Mode).
+      # Match the whole family ("Continue anyway? [y/N] (auto-n in 60s):"
+      # etc.) and confirm immediately before the 60s auto-no fires.
       -re "Continue anyway" {
         send "y\r"
         exp_continue
@@ -108,13 +109,15 @@
 # under-provisioned CPU/RAM, rc 114 = disk > 80%. tasks/lxc-rightsize.yml fixes
 # both on the Proxmox run beforehand; if one still happens, say so plainly.
 - name: Fail if update command failed
+  vars:
+    abort_line_re: '(?:Aborted|ERROR|Error)[^\r\n\x1b]*'
   fail:
     msg: >-
       {{ update_command_path }} exited rc {{ update_command_result.rc }}:
       {{ {'113': 'under-provisioned CPU/RAM vs community-scripts minimum',
           '114': 'rootfs over 80% full'}[update_command_result.rc | string]
          | default((update_command_result.stdout | default('')
-                    | regex_findall('(?:Aborted|ERROR|Error)[^\r\n\x1b]*') | last)
+                    | regex_findall(abort_line_re) | last)
                    | default('see stdout')) }}
   when:
     - update_command_result.rc is defined
