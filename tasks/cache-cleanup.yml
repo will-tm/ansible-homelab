@@ -1,5 +1,5 @@
 ---
-- name: Prune npm/pnpm/uv caches and stale n8n editor assets
+- name: Prune build caches (npm/pnpm/uv, n8n assets, WGDashboard)
   script: files/cache_cleanup.sh
   register: cache_cleanup_result
   changed_when: "'CHANGED' in cache_cleanup_result.stdout"

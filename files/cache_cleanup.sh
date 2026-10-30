@@ -35,6 +35,16 @@ if command -v npm >/dev/null 2>&1; then
   done
 fi
 
+# WGDashboard compiles its frontend on every update (wgd.sh: npm ci && npm
+# run build) and leaves ~500M of build-only node_modules behind; it serves
+# static/dist only. Its log dir never rotates (one file per start, 30M
+# error logs). Both pushed wireguard's 4G rootfs past 80% (rc 114).
+wgd=/etc/wgdashboard/src
+if [ -d "$wgd/static/dist/WGDashboardAdmin" ]; then
+  rm -rf "$wgd"/static/*/node_modules
+fi
+[ -d "$wgd/log" ] && find "$wgd/log" -type f -name '*.log' -mtime +30 -delete
+
 freed=$(( ($before - $(used)) / 1024 ))
 [ "$freed" -gt 0 ] && echo "CHANGED freed ${freed}MB"
 exit 0
